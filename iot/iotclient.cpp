@@ -31,28 +31,15 @@
 
 #include "iotclient.h"
 
-#include "callmanager_interface.h"
-#include "iotcallmanager.h"
-
-#include "iotconfigurationmanager.h"
-#include "configurationmanager_interface.h"
-
-#include "iotpresencemanager.h"
-#include "presencemanager_interface.h"
-
-#ifdef RING_VIDEO
-#include "iotvideomanager.h"
-#include "videomanager_interface.h"
-#endif
 
 IotClient::IotClient(int flags, bool persistent)
 {
-    callManager_.reset(new IotCallManager {sessionConnection});
-    configurationManager_.reset(new IotConfigurationManager {sessionConnection});
-    presenceManager_.reset(new IotPresenceManager {sessionConnection});
+    callManager_.reset(new IotCallManager());
+    configurationManager_.reset(new IotConfigurationManager());
+    presenceManager_.reset(new IotPresenceManager());
 
 #ifdef RING_VIDEO
-    videoManager_.reset(new IotVideoManager {sessionConnection});
+    videoManager_.reset(new IotVideoManager());
 #endif
 
     if (initLibrary(flags) < 0)
@@ -195,7 +182,7 @@ IotClient::event_loop() noexcept
 {
     // While the iot client is running, the events are polled every 10 milliseconds
     RING_INFO("IotClient starting to poll events");
-    while(true)
+    while(!pollNoMore_)
     {
         DRing::pollEvents();
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -207,6 +194,8 @@ int
 IotClient::exit() noexcept
 {
     try {
+        // On exit, the client stop polling events
+        pollNoMore_ = true;
         finiLibrary();
     } catch (const std::exception& err) {
         std::cerr << "quitting: " << err.what() << std::endl;

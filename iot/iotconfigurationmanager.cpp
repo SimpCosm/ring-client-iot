@@ -28,8 +28,7 @@
 
 #include "media/audio/audiolayer.h"
 
-IotConfigurationManager::IotConfigurationManager(Iot::Connection& connection)
-    : Iot::ObjectAdaptor(connection, "/cx/ring/Ring/ConfigurationManager")
+IotConfigurationManager::IotConfigurationManager()
 {}
 
 auto

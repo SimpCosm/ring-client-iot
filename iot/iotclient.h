@@ -26,15 +26,19 @@
 #include "config.h"
 #endif // HAVE_CONFIG_H
 
-#include "dring.h"
 #include <memory>
 
-class IotConfigurationManager;
-class IotCallManager;
-class IotPresenceManager;
+#include "dring/dring.h"
+#include "dring/callmanager_interface.h"
+#include "dring/configurationmanager_interface.h"
+#include "dring/presencemanager_interface.h"
+#include "iotcallmanager.h"
+#include "iotconfigurationmanager.h"
+#include "iotpresencemanager.h"
 
 #ifdef RING_VIDEO
-class IotVideoManager;
+#include "dring/videomanager_interface.h"
+#include "iotvideomanager.h"
 #endif
 
 class IotClient {
@@ -48,6 +52,8 @@ class IotClient {
     private:
         int initLibrary(int flags);
         void finiLibrary() noexcept;
+
+        bool pollNoMore_ = false;
 
         std::unique_ptr<IotCallManager>          callManager_;
         std::unique_ptr<IotConfigurationManager> configurationManager_;

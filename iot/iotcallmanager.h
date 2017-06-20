@@ -26,20 +26,11 @@
 #include <map>
 #include <string>
 
+#pragma GCC diagnostic warning "-Wignored-qualifiers"
+
 #if __GNUC__ >= 5 || (__GNUC__ >=4 && __GNUC_MINOR__ >= 6)
 /* This warning option only exists for gcc 4.6.0 and greater. */
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
-#endif
-
-#pragma GCC diagnostic ignored "-Wignored-qualifiers"
-#pragma GCC diagnostic ignored "-Wunused-parameter"
-#include "dbuscallmanager.adaptor.h"
-#pragma GCC diagnostic warning "-Wignored-qualifiers"
-#pragma GCC diagnostic warning "-Wunused-parameter"
-
-#if __GNUC__ >= 5 || (__GNUC__ >=4 && __GNUC_MINOR__ >= 6)
-/* This warning option only exists for gcc 4.6.0 and greater. */
-#pragma GCC diagnostic warning "-Wunused-but-set-variable"
 #endif
 
 #include <stdexcept>
