@@ -33,7 +33,7 @@
 
 #include "logger.h"
 
-#include "iotclient.h"
+#include "iot/iotclient.h"
 
 #include "fileutils.h"
 
@@ -202,10 +202,11 @@ main(int argc, char *argv [])
     try {
         iotClient.reset(new IotClient {ringFlags, persistent});
     } catch (const std::exception& ex) {
-        std::cerr << "One does not simply initialize the DBus client: " << ex.what() << std::endl;
+        std::cerr << "One does not simply initialize the iot client: " << ex.what() << std::endl;
         return 1;
     }
 
+    std::cout << "welcome to RING IoT\n";
     if (iotClient)
         return iotClient->event_loop();
     else

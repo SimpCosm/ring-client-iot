@@ -27,6 +27,12 @@
 #endif // HAVE_CONFIG_H
 
 #include <memory>
+#include <map>
+#include <vector>
+#include <string>
+#include <thread>
+#include <functional>
+#include <chrono>
 
 #include "dring/dring.h"
 #include "dring/callmanager_interface.h"
@@ -41,6 +47,7 @@
 #include "iotvideomanager.h"
 #endif
 
+#include "logger.h"
 class IotClient {
     public:
         IotClient(int flags, bool persistent);

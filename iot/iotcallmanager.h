@@ -35,7 +35,7 @@
 
 #include <stdexcept>
 
-class IotCallManager :
+class IotCallManager
 {
     public:
         IotCallManager();

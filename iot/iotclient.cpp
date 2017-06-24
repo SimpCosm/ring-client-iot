@@ -30,7 +30,7 @@
 #include <stdexcept>
 
 #include "iotclient.h"
-
+#include "dring/account_const.h"
 
 IotClient::IotClient(int flags, bool persistent)
 {
@@ -83,91 +83,27 @@ IotClient::initLibrary(int flags)
     auto videoM = videoManager_.get();
 #endif
 
-    // Call event handlers
-    const std::map<std::string, SharedCallback> callEvHandlers = {
-        exportable_callback<CallSignal::StateChange>(bind(&IotCallManager::callStateChanged, callM, _1, _2, _3)),
-        exportable_callback<CallSignal::TransferFailed>(bind(&IotCallManager::transferFailed, callM)),
-        exportable_callback<CallSignal::TransferSucceeded>(bind(&IotCallManager::transferSucceeded, callM)),
-        exportable_callback<CallSignal::RecordPlaybackStopped>(bind(&IotCallManager::recordPlaybackStopped, callM, _1)),
-        exportable_callback<CallSignal::VoiceMailNotify>(bind(&IotCallManager::voiceMailNotify, callM, _1, _2)),
-        exportable_callback<CallSignal::IncomingMessage>(bind(&IotCallManager::incomingMessage, callM, _1, _2, _3)),
-        exportable_callback<CallSignal::IncomingCall>(bind(&IotCallManager::incomingCall, callM, _1, _2, _3)),
-        exportable_callback<CallSignal::RecordPlaybackFilepath>(bind(&IotCallManager::recordPlaybackFilepath, callM, _1, _2)),
-        exportable_callback<CallSignal::ConferenceCreated>(bind(&IotCallManager::conferenceCreated, callM, _1)),
-        exportable_callback<CallSignal::ConferenceChanged>(bind(&IotCallManager::conferenceChanged, callM, _1, _2)),
-        exportable_callback<CallSignal::UpdatePlaybackScale>(bind(&IotCallManager::updatePlaybackScale, callM, _1, _2, _3)),
-        exportable_callback<CallSignal::ConferenceRemoved>(bind(&IotCallManager::conferenceRemoved, callM, _1)),
-        exportable_callback<CallSignal::NewCallCreated>(bind(&IotCallManager::newCallCreated, callM, _1, _2, _3)),
-        exportable_callback<CallSignal::RecordingStateChanged>(bind(&IotCallManager::recordingStateChanged, callM, _1, _2)),
-        exportable_callback<CallSignal::SecureSdesOn>(bind(&IotCallManager::secureSdesOn, callM, _1)),
-        exportable_callback<CallSignal::SecureSdesOff>(bind(&IotCallManager::secureSdesOff, callM, _1)),
-        exportable_callback<CallSignal::RtcpReportReceived>(bind(&IotCallManager::onRtcpReportReceived, callM, _1, _2)),
-        exportable_callback<CallSignal::PeerHold>(bind(&IotCallManager::peerHold, callM, _1, _2)),
-        exportable_callback<CallSignal::AudioMuted>(bind(&IotCallManager::audioMuted, callM, _1, _2)),
-        exportable_callback<CallSignal::VideoMuted>(bind(&IotCallManager::videoMuted, callM, _1, _2)),
-        exportable_callback<CallSignal::SmartInfo>(bind(&IotCallManager::SmartInfo, callM, _1))
-    };
-
     // Configuration event handlers
+    
+    // This is a short example of callback using a lambda. In this case, this displays the incoming messages
     const std::map<std::string, SharedCallback> configEvHandlers = {
-        exportable_callback<ConfigurationSignal::VolumeChanged>(bind(&IotConfigurationManager::volumeChanged, confM, _1, _2)),
-        exportable_callback<ConfigurationSignal::AccountsChanged>(bind(&IotConfigurationManager::accountsChanged, confM)),
-        exportable_callback<ConfigurationSignal::StunStatusFailed>(bind(&IotConfigurationManager::stunStatusFailure, confM, _1)),
-        exportable_callback<ConfigurationSignal::RegistrationStateChanged>(bind(&IotConfigurationManager::registrationStateChanged, confM, _1, _2, _3, _4)),
-        exportable_callback<ConfigurationSignal::VolatileDetailsChanged>(bind(&IotConfigurationManager::volatileAccountDetailsChanged, confM, _1, _2)),
-        exportable_callback<ConfigurationSignal::Error>(bind(&IotConfigurationManager::errorAlert, confM, _1)),
-        exportable_callback<ConfigurationSignal::IncomingAccountMessage>(bind(&IotConfigurationManager::incomingAccountMessage, confM, _1, _2, _3 )),
-        exportable_callback<ConfigurationSignal::AccountMessageStatusChanged>(bind(&IotConfigurationManager::accountMessageStatusChanged, confM, _1, _2, _3, _4 )),
-        exportable_callback<ConfigurationSignal::IncomingTrustRequest>(bind(&IotConfigurationManager::incomingTrustRequest, confM, _1, _2, _3, _4 )),
-        exportable_callback<ConfigurationSignal::ContactAdded>(bind(&IotConfigurationManager::contactAdded, confM, _1, _2, _3 )),
-        exportable_callback<ConfigurationSignal::ContactRemoved>(bind(&IotConfigurationManager::contactRemoved, confM, _1, _2, _3 )),
-        exportable_callback<ConfigurationSignal::ExportOnRingEnded>(bind(&IotConfigurationManager::exportOnRingEnded, confM, _1, _2, _3 )),
-        exportable_callback<ConfigurationSignal::KnownDevicesChanged>(bind(&IotConfigurationManager::knownDevicesChanged, confM, _1, _2 )),
-        exportable_callback<ConfigurationSignal::NameRegistrationEnded>(bind(&IotConfigurationManager::nameRegistrationEnded, confM, _1, _2, _3 )),
-        exportable_callback<ConfigurationSignal::RegisteredNameFound>(bind(&IotConfigurationManager::registeredNameFound, confM, _1, _2, _3, _4 )),
-        exportable_callback<ConfigurationSignal::DeviceRevocationEnded>(bind(&IotConfigurationManager::deviceRevocationEnded, confM, _1, _2, _3)),
-        exportable_callback<ConfigurationSignal::CertificatePinned>(bind(&IotConfigurationManager::certificatePinned, confM, _1 )),
-        exportable_callback<ConfigurationSignal::CertificatePathPinned>(bind(&IotConfigurationManager::certificatePathPinned, confM, _1, _2 )),
-        exportable_callback<ConfigurationSignal::CertificateExpired>(bind(&IotConfigurationManager::certificateExpired, confM, _1 )),
-        exportable_callback<ConfigurationSignal::CertificateStateChanged>(bind(&IotConfigurationManager::certificateStateChanged, confM, _1, _2, _3 )),
-        exportable_callback<ConfigurationSignal::MediaParametersChanged>(bind(&IotConfigurationManager::mediaParametersChanged, confM, _1 )),
-        exportable_callback<ConfigurationSignal::MigrationEnded>(bind(&IotConfigurationManager::migrationEnded, confM, _1, _2 )),
+        exportable_callback<ConfigurationSignal::IncomingAccountMessage>([]
+            (const std::string& accountID, const std::string& from, const std::map<std::string, std::string>& payloads){
+                RING_INFO("accountID : %s", accountID.c_str());
+                RING_INFO("from : %s", from.c_str());
+                for(auto& it : payloads)
+                    RING_INFO("%s : %s", it.first.c_str(), it.second.c_str());
+            }),
     };
-
-    // Presence event handlers
-    const std::map<std::string, SharedCallback> presEvHandlers = {
-        exportable_callback<PresenceSignal::NewServerSubscriptionRequest>(bind(&IotPresenceManager::newServerSubscriptionRequest, presM, _1)),
-        exportable_callback<PresenceSignal::ServerError>(bind(&IotPresenceManager::serverError, presM, _1, _2, _3)),
-        exportable_callback<PresenceSignal::NewBuddyNotification>(bind(&IotPresenceManager::newBuddyNotification, presM, _1, _2, _3, _4)),
-        exportable_callback<PresenceSignal::SubscriptionStateChanged>(bind(&IotPresenceManager::subscriptionStateChanged, presM, _1, _2, _3)),
-    };
-
-    const std::map<std::string, SharedCallback> audioEvHandlers = {
-        exportable_callback<AudioSignal::DeviceEvent>(bind(&IotConfigurationManager::audioDeviceEvent, confM)),
-    };
-
-#ifdef RING_VIDEO
-    // Video event handlers
-    const std::map<std::string, SharedCallback> videoEvHandlers = {
-        exportable_callback<VideoSignal::DeviceEvent>(bind(&IotVideoManager::deviceEvent, videoM)),
-        exportable_callback<VideoSignal::DecodingStarted>(bind(&IotVideoManager::startedDecoding, videoM, _1, _2, _3, _4, _5)),
-        exportable_callback<VideoSignal::DecodingStopped>(bind(&IotVideoManager::stoppedDecoding, videoM, _1, _2, _3)),
-    };
-#endif
 
     if (!DRing::init(static_cast<DRing::InitFlag>(flags)))
         return -1;
 
-    registerCallHandlers(callEvHandlers);
     registerConfHandlers(configEvHandlers);
-    registerPresHandlers(presEvHandlers);
-    registerPresHandlers(audioEvHandlers);
-#ifdef RING_VIDEO
-    registerVideoHandlers(videoEvHandlers);
-#endif
 
     if (!DRing::start())
         return -1;
+
     return 0;
 }
 
@@ -182,10 +118,43 @@ IotClient::event_loop() noexcept
 {
     // While the iot client is running, the events are polled every 10 milliseconds
     RING_INFO("IotClient starting to poll events");
+    auto confM = configurationManager_.get();
+    const std::vector<std::string> accountList(confM->getAccountList());
+
+    if (accountList.empty())
+    {
+        RING_INFO("No Account Yet");
+
+       auto details = confM->getAccountTemplate(DRing::Account::ProtocolNames::RING);
+        details["Account.alias"] = "loveST";
+        details["Account.archivePassword"] = "loveST1MARING";
+        details["Account.deviceID"] = "6bf905c7894c620894e0b40d0ef9f468f2c358d1";
+        details["Account.deviceName"] = "cosmos";
+        details["Account.displayName"] = "loveST";
+        details["Account.hostname"] = "bootstrap.ring.cx";
+        details["Account.username"] = "ring:3e4ae4861d1e888522b7c1530c202f8c43e99d71";
+        details["RingNS.account"] = "ccd0eeaf90ca0d75a6fa277fee8b822a32ef93fa";
+        confM->addAccount(details);
+    }
+
     while(!pollNoMore_)
     {
         DRing::pollEvents();
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        std::map<std::string, std::string> payloads;
+        std::string payload("payload");
+        std::string msg("houmin");
+        payloads.insert(std::make_pair(payload, msg));
+        auto accLst = confM->getAccountList();
+        if (!accLst.empty())
+        {
+            for (auto &item: accLst)
+                RING_INFO("%s",item.c_str());
+            std::string toAccountID(accLst.front());
+            std::string toUri("ring:fd9d8b64610500a8f7b87579fbfc75562ff97f3c");
+            confM->sendTextMessage(toAccountID, toUri, payloads);
+        }
+        RING_INFO("POLLING...");
     }
     return 0;
 }

@@ -32,7 +32,7 @@
 #pragma GCC diagnostic warning "-Wunused-but-set-variable"
 #endif
 
-class IotVideoManager :
+class IotVideoManager
 {
     public:
         IotVideoManager();

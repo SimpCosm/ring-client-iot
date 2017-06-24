@@ -33,7 +33,7 @@
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
 #endif
 
-class IotPresenceManager :
+class IotPresenceManager
 {
     public:
         IotPresenceManager();
