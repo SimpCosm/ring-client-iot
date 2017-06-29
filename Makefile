@@ -1,5 +1,5 @@
 CC = g++
-CFLAGS := -Wall -std=c++11 -lring -L /home/houmin/ring-daemon/src/.libs -static
+CFLAGS := -Wall -std=c++11 -lring -static
 
 all: ring-iot
 

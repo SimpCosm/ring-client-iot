@@ -20,19 +20,14 @@
 
 #include <iostream>
 #include <thread>
-#include <cstring>
-#include <signal.h>
-#include <getopt.h>
-#include <string>
 #include <chrono>
+#include <getopt.h>
+#include <signal.h>
 
 #include "dring.h"
-#include "callmanager_interface.h"
-#include "configurationmanager_interface.h"
 
 using namespace std::placeholders;
 
-bool isActive = false;
 static int ringFlags = 0;
 bool loop = true;
 
@@ -142,42 +137,14 @@ parse_args(int argc, char *argv[], bool& persistent)
     return false;
 }
 
-void
-IncomingCall(const std::string& accountId,
-    const std::string& callId, const std::string& message)
-{
-    (void) accountId;
-    (void) message;
-    if (not isActive) {
-        DRing::accept(callId);
-        isActive = true;
-    } else
-        DRing::refuse(callId);
-}
-
 static int
 run()
 {
-    using SharedCallback = std::shared_ptr<DRing::CallbackWrapperBase>;
 
-    DRing::init(static_cast<DRing::InitFlag>(ringFlags));
-
-    std::map<std::string, SharedCallback> callHandlers;
-    callHandlers.insert(DRing::exportable_callback<DRing::CallSignal::IncomingCall>
-        (std::bind(&IncomingCall, _1, _2, _3)));
-
-    registerCallHandlers(callHandlers);
-
-    if (!DRing::start())
-        return -1;
-
+//    DRing::init(static_cast<DRing::InitFlag>(ringFlags));
     while (loop) {
-        DRing::pollEvents();
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
-
-    DRing::fini();
-
     return 0;
 }
 
@@ -206,9 +173,9 @@ main(int argc, char *argv [])
     // guarantee that memory is correctly managed/exception safe
     std::string programName {argv[0]};
     std::vector<char> writable(programName.size() + 1);
-    std::copy(std::begin(programName), std::end(programName),std::begin(writable));
+    std::copy(programName.begin(), programName.end(), writable.begin());
 
-    print_title();
+	print_title();
 
     bool persistent = false;
     if (parse_args(argc, argv, persistent))
