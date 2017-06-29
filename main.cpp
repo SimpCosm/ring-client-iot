@@ -1,11 +1,7 @@
 /*
  *  Copyright (C) 2004-2017 Savoir-faire Linux Inc.
  *
- *  Author: Alexandre Bourget <alexandre.bourget@savoirfairelinux.com>
- *  Author: Yan Morin <yan.morin@savoirfairelinux.com>
- *  Author: Laurielle Lea <laurielle.lea@savoirfairelinux.com>
- *  Author: Simon Zeni <simon.zeni@savoirfairelinux.com>
- *  Author: Houmin Wei <houmin.wei@pku.edu.cn>
+ *  Author: Edric Milaret <edric.ladent-milaret@savoirfairelinux.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -27,20 +23,18 @@
 #include <cstring>
 #include <signal.h>
 #include <getopt.h>
-#include <cstdlib>
+#include <string>
+#include <chrono>
 
-#include "dring/dring.h"
+#include "dring.h"
+#include "callmanager_interface.h"
+#include "configurationmanager_interface.h"
 
-#include "logger.h"
+using namespace std::placeholders;
 
-#include "iot/iotclient.h"
-
-#include "fileutils.h"
-
+bool isActive = false;
 static int ringFlags = 0;
-static int port = 8080;
-
-static std::unique_ptr<IotClient> iotClient;
+bool loop = true;
 
 static void
 print_title()
@@ -62,7 +56,6 @@ print_usage()
     "-c, --console \t- Log in console (instead of syslog)" << std::endl <<
     "-d, --debug \t- Debug mode (more verbose)" << std::endl <<
     "-p, --persistent \t- Stay alive after client quits" << std::endl <<
-    "--port \t- Port to use for the rest API. Default is 8080" << std::endl <<
     "--auto-answer \t- Force automatic answer to incoming calls" << std::endl <<
     "-h, --help \t- Print help" << std::endl;
 }
@@ -87,7 +80,6 @@ parse_args(int argc, char *argv[], bool& persistent)
         {"help", no_argument, NULL, 'h'},
         {"version", no_argument, NULL, 'v'},
         {"auto-answer", no_argument, &autoAnswer, true},
-        {"port", optional_argument, NULL, 'x'},
         {0, 0, 0, 0} /* Sentinel */
     };
 
@@ -95,7 +87,7 @@ parse_args(int argc, char *argv[], bool& persistent)
         /* getopt_long stores the option index here. */
         int option_index = 0;
 
-        auto c = getopt_long(argc, argv, "dcphvx:", long_options, &option_index);
+        auto c = getopt_long(argc, argv, "dcphv", long_options, &option_index);
 
         // end of the options
         if (c == -1)
@@ -121,10 +113,6 @@ parse_args(int argc, char *argv[], bool& persistent)
 
             case 'v':
                 versionFlag = true;
-                break;
-
-            case 'x':
-                port = std::atoi(optarg);
                 break;
 
             default:
@@ -154,20 +142,61 @@ parse_args(int argc, char *argv[], bool& persistent)
     return false;
 }
 
+void
+IncomingCall(const std::string& accountId,
+    const std::string& callId, const std::string& message)
+{
+    (void) accountId;
+    (void) message;
+    if (not isActive) {
+        DRing::accept(callId);
+        isActive = true;
+    } else
+        DRing::refuse(callId);
+}
+
+static int
+run()
+{
+    using SharedCallback = std::shared_ptr<DRing::CallbackWrapperBase>;
+
+    DRing::init(static_cast<DRing::InitFlag>(ringFlags));
+
+    std::map<std::string, SharedCallback> callHandlers;
+    callHandlers.insert(DRing::exportable_callback<DRing::CallSignal::IncomingCall>
+        (std::bind(&IncomingCall, _1, _2, _3)));
+
+    registerCallHandlers(callHandlers);
+
+    if (!DRing::start())
+        return -1;
+
+    while (loop) {
+        DRing::pollEvents();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    }
+
+    DRing::fini();
+
+    return 0;
+}
+
+static void
+interrupt()
+{
+    loop = false;
+}
+
 static void
 signal_handler(int code)
 {
-    std::cerr << "Caught signal " << strsignal(code)
+    std::cerr << "Caught signal " << code
               << ", terminating..." << std::endl;
-
     // Unset signal handlers
-    signal(SIGHUP, SIG_DFL);
     signal(SIGINT, SIG_DFL);
     signal(SIGTERM, SIG_DFL);
 
-    // Interrupt the process
-    if (iotClient)
-        iotClient->exit();
+    interrupt();
 }
 
 int
@@ -177,14 +206,7 @@ main(int argc, char *argv [])
     // guarantee that memory is correctly managed/exception safe
     std::string programName {argv[0]};
     std::vector<char> writable(programName.size() + 1);
-    std::copy(programName.begin(), programName.end(), writable.begin());
-
-    ring::fileutils::set_program_dir(writable.data());
-
-#ifdef TOP_BUILDDIR
-    if (!getenv("CODECS_PATH"))
-        setenv("CODECS_PATH", TOP_BUILDDIR "/src/media/audio/codecs", 1);
-#endif
+    std::copy(std::begin(programName), std::end(programName),std::begin(writable));
 
     print_title();
 
@@ -195,21 +217,7 @@ main(int argc, char *argv [])
     // TODO: Block signals for all threads but the main thread, decide how/if we should
     // handle other signals
     signal(SIGINT, signal_handler);
-    signal(SIGHUP, signal_handler);
     signal(SIGTERM, signal_handler);
 
-    // initialize client/library
-    try {
-        iotClient.reset(new IotClient {ringFlags, persistent});
-    } catch (const std::exception& ex) {
-        std::cerr << "One does not simply initialize the iot client: " << ex.what() << std::endl;
-        return 1;
-    }
-
-    std::cout << "welcome to RING IoT\n";
-    if (iotClient)
-        return iotClient->event_loop();
-    else
-        return 1;
-
+    return run();
 }
