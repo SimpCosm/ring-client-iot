@@ -141,7 +141,7 @@ static int
 run()
 {
 
-//    DRing::init(static_cast<DRing::InitFlag>(ringFlags));
+    DRing::init(static_cast<DRing::InitFlag>(ringFlags));
     while (loop) {
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
