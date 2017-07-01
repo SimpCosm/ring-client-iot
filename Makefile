@@ -1,7 +1,8 @@
 CC = g++
-CFLAGS := -Wall -std=c++11 \
-		-I /home/houmin/ring-daemon/contrib/x86_64-linux-gnu/include/ \
-		-lring -largon2 -lavcodec -lavdevice -lavfilter -lavformat -lavutil \
+CXXFLAGS :=  -I/home/houmin/ring-daemon/contrib/x86_64-linux-gnu/include/ \
+                 -L/home/houmin/ring-daemon/contrib/x86_64-linux-gnu/lib \
+				 -Wall -std=c++11
+LIBS := -lring -largon2 -lavcodec -lavdevice -lavfilter -lavformat -lavutil \
 		-lboost_random -lboost_system -lcryptopp -lgmp -lgnutls -lgsm -lhogweed \
 		-lnatpmp -lmsgpackc -lnettle -lopendht \
 		-lpjlib-util-x86_64-pc-linux-gnu \
@@ -19,13 +20,12 @@ CFLAGS := -Wall -std=c++11 \
 		-lpostproc  -lrestbed \
 		-lsrtp-x86_64-pc-linux-gnu \
 	 	-lswresample  -lswscale -lx264 -lvpx -lyaml-cpp \
-		-lpthread -ldl -lsndfile \
-		-L/home/houmin/ring-daemon/contrib/x86_64-linux-gnu/lib -static 
+		-lpthread -ldl -lsndfile -lrt -ludev
 
 all: ring-iot
 
 ring-iot: main.cpp
-	$(CC) -o ring-iot main.cpp $(CFLAGS)
+	$(CC) -o ring-iot main.cpp $(CXXFLAGS) $(LIBS)
 
 clean:
 	rm -f *~ *.o ring-iot
