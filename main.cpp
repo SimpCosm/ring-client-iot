@@ -24,7 +24,10 @@
 #include <getopt.h>
 #include <signal.h>
 
-#include "dring.h"
+#include "dring/dring.h"
+#include "dring/configurationmanager_interface.h"
+#include "dring/account_const.h"
+#include "logger.h"
 
 using namespace std::placeholders;
 
@@ -137,12 +140,73 @@ parse_args(int argc, char *argv[], bool& persistent)
     return false;
 }
 
+void IncomingMessages(const std::string& accountID, 
+                    const std::string& from,
+                    const std::map<std::string, std::string>& payloads)
+{
+    RING_INFO("accountID : %s", accountID.c_str());
+    RING_INFO("from : %s", from.c_str());
+    for (auto& it : payloads) {
+        RING_INFO("%s : %s", it.first.c_str(), it.second.c_str());
+    }
+}
 static int
 run()
 {
+ 
+    using SharedCallback = std::shared_ptr<DRing::CallbackWrapperBase>;
+    using DRing::exportable_callback;
+    using DRing::ConfigurationSignal;
+    using std::bind;
 
-    DRing::init(static_cast<DRing::InitFlag>(ringFlags));
+    std::map<std::string, SharedCallback> configHandlers;
+    configHandlers.insert(exportable_callback<ConfigurationSignal::IncomingAccountMessage>(bind(&IncomingMessages, _1, _2, _3)));
+    
+    if (!DRing::init(static_cast<DRing::InitFlag>(ringFlags))) {
+        RING_ERR("DRing init error!");
+        return -1;
+    }
+    
+    registerConfHandlers(configHandlers);
+    
+    if (!DRing::start()) {
+        RING_ERR("DRing start error!");
+        return -1;
+    }
+
+    const std::vector<std::string> accountList(DRing::getAccountList());
+    RING_INFO("********ADD ACCOUNT**********");
+    if (accountList.empty()) {
+        RING_INFO("TRYING TO ADD ACCOUNT");
+        auto details = DRing::getAccountTemplate(DRing::Account::ProtocolNames::RING);
+        details["Account.alias"] = "loveST";
+        details["Account.archivePassword"] = "loveST1MARING";
+        details["Account.deviceID"] = "6bf905c7894c620894e0b40d0ef9f468f2c358d1";
+        details["Account.deviceName"] = "cosmos";
+        details["Account.displayName"] = "loveST";
+        details["Account.hostname"] = "bootstrap.ring.cx";
+        details["Account.username"] = "ring:3e4ae4861d1e888522b7c1530c202f8c43e99d71";
+        details["RingNS.account"] = "ccd0eeaf90ca0d75a6fa277fee8b822a32ef93fa";
+        DRing::addAccount(details);
+    }
+    else {
+        if (!accountList.empty()) {
+            for (auto &item : accountList)
+                RING_INFO("%s", item.c_str());
+        }
+    }
+
+    std::map<std::string, std::string> payloads;
+    std::string payload("payload");
+    std::string msg("houmin");
+    payloads.insert(std::make_pair(payload, msg));
+    std::string accountID(accountList.front());
+    std::string toUri("ring:fd9d8b64610500a8f7b87579fbfc75562ff97f3c");
+
+    RING_INFO("-----------------------------LOOP BEGIN----------------------");
     while (loop) {
+        DRing::pollEvents();
+        DRing::sendAccountTextMessage(accountID, toUri, payloads);
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     return 0;
