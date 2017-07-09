@@ -21,8 +21,11 @@
 #include <iostream>
 #include <thread>
 #include <chrono>
+#include <string>
 #include <getopt.h>
 #include <signal.h>
+#include <unistd.h>
+#include <fcntl.h>
 
 #include "dring/dring.h"
 #include "dring/configurationmanager_interface.h"
@@ -144,11 +147,34 @@ void IncomingMessages(const std::string& accountID,
                     const std::string& from,
                     const std::map<std::string, std::string>& payloads)
 {
-    RING_INFO("accountID : %s", accountID.c_str());
-    RING_INFO("from : %s", from.c_str());
+    printf("accountID : %s\n", accountID.c_str());
+    printf("from : %s\n", from.c_str());
     for (auto& it : payloads) {
-        RING_INFO("%s : %s", it.first.c_str(), it.second.c_str());
+        printf("%s : %s\n", it.first.c_str(), it.second.c_str());
     }
+}
+
+
+int kbhit(void)
+{
+    struct timeval tv;
+    fd_set read_fd;
+    tv.tv_sec = 0;
+    tv.tv_usec = 0;
+    FD_ZERO(&read_fd);
+    FD_SET(0, &read_fd);
+    select(1, &read_fd, NULL, /*No writes*/NULL, /*No exceptions*/&tv);
+    return FD_ISSET(0, &read_fd);
+}
+
+std::map<std::string, std::string> inputMessage()
+{
+    std::map<std::string, std::string> payloads;
+    std::string payload("payload");
+    std::string msg;
+    getline(std::cin, msg);
+    payloads.insert(std::make_pair(payload, msg));
+    return payloads;
 }
 static int
 run()
@@ -196,17 +222,17 @@ run()
         }
     }
 
-    std::map<std::string, std::string> payloads;
-    std::string payload("payload");
-    std::string msg("houmin");
-    payloads.insert(std::make_pair(payload, msg));
+   // std::map<std::string, std::string> payloads;
     std::string accountID(accountList.front());
     std::string toUri("ring:fd9d8b64610500a8f7b87579fbfc75562ff97f3c");
 
     RING_INFO("-----------------------------LOOP BEGIN----------------------");
     while (loop) {
         DRing::pollEvents();
-        DRing::sendAccountTextMessage(accountID, toUri, payloads);
+        if (kbhit()) {
+            std::map<std::string, std::string> payloads(inputMessage());
+            DRing::sendAccountTextMessage(accountID, toUri, payloads);
+        }
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
     return 0;
