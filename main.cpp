@@ -27,6 +27,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
+#include <json/json.h>
+
 #include "dring/dring.h"
 #include "dring/configurationmanager_interface.h"
 #include "dring/account_const.h"
@@ -151,6 +153,19 @@ void IncomingMessages(const std::string& accountID,
     printf("from : %s\n", from.c_str());
     for (auto& it : payloads) {
         printf("%s : %s\n", it.first.c_str(), it.second.c_str());
+        Json::Value root;
+        Json::Reader reader;
+        if (reader.parse(it.second, root))
+        {
+            const Json::Value cmd = root["command"];
+            const Json::Value mesg = cmd["mesg"];
+            std::string uri = mesg["uri"].asString();
+            std::string info = mesg["info"].asString();
+            std::map<std::string, std::string> payloads;
+            std::string mimetype("text/plain");
+            payloads.insert(std::make_pair(mimetype, info));
+            DRing::sendAccountTextMessage(accountID, uri, payloads);
+        }
     }
 }
 
@@ -167,13 +182,31 @@ int kbhit(void)
     return FD_ISSET(0, &read_fd);
 }
 
+std::string parseCmd(std::string msg)
+{
+    Json::Value root;
+    Json::Value cmd;
+    std::string action = msg.substr(0, 4);
+    if (action == "mesg") {
+            std::string uri = msg.substr(5, 40);
+            std::string info = msg.substr(46);
+            Json::Value mesg;
+            mesg["uri"] = uri;
+            mesg["info"] = info;
+            cmd["mesg"] = mesg;
+    }
+    root["command"] = cmd;
+    Json::FastWriter fastWriter;
+    std::string output = fastWriter.write(root);
+    return output;
+}
 std::map<std::string, std::string> inputMessage()
 {
     std::map<std::string, std::string> payloads;
-    std::string payload("payload");
+    std::string mimetype("text/plain");
     std::string msg;
     getline(std::cin, msg);
-    payloads.insert(std::make_pair(payload, msg));
+    payloads.insert(std::make_pair(mimetype, parseCmd(msg)));
     return payloads;
 }
 static int
