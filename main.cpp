@@ -2,6 +2,7 @@
  *  Copyright (C) 2004-2017 Savoir-faire Linux Inc.
  *
  *  Author: Edric Milaret <edric.ladent-milaret@savoirfairelinux.com>
+ *  Author: Houmin Wei <weihoumin@gmail.com>
  *
  *  This program is free software; you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -31,6 +32,7 @@
 
 #include "dring/dring.h"
 #include "dring/configurationmanager_interface.h"
+#include "dring/callmanager_interface.h"
 #include "dring/account_const.h"
 #include "logger.h"
 
@@ -145,7 +147,7 @@ parse_args(int argc, char *argv[], bool& persistent)
     return false;
 }
 
-void IncomingMessages(const std::string& accountID, 
+void IncomingMessages(const std::string& accountID,
                     const std::string& from,
                     const std::map<std::string, std::string>& payloads)
 {
@@ -158,18 +160,36 @@ void IncomingMessages(const std::string& accountID,
         if (reader.parse(it.second, root))
         {
             const Json::Value cmd = root["command"];
-            const Json::Value mesg = cmd["mesg"];
-            std::string uri = mesg["uri"].asString();
-            std::string info = mesg["info"].asString();
-            std::map<std::string, std::string> payloads;
-            std::string mimetype("text/plain");
-            payloads.insert(std::make_pair(mimetype, info));
-            DRing::sendAccountTextMessage(accountID, uri, payloads);
+            if (!cmd["mesg"].isNull())
+            {
+                const Json::Value mesg = cmd["mesg"];
+                std::string uri = mesg["uri"].asString();
+                std::string info = mesg["info"].asString();
+                std::map<std::string, std::string> payloads;
+                std::string mimetype("text/plain");
+                payloads.insert(std::make_pair(mimetype, info));
+                DRing::sendAccountTextMessage(accountID, uri, payloads);
+            }
+            if (!cmd["call"].isNull())
+            {
+                const Json::Value call = cmd["call"];
+                std::string uri = call["uri"].asString();
+                DRing::placeCall(accountID, uri);
+            }
         }
     }
 }
 
+void IncomingCall(const std::string& accountID,
+                const std::string& callID,
+                const std::string& from)
+{
+    printf("accountID : %s\n", accountID.c_str());
+    printf("callID : %s\n", callID.c_str());
+    printf("from : %s\n", from.c_str());
 
+    DRing::accept(callID);
+}
 int kbhit(void)
 {
     struct timeval tv;
@@ -188,12 +208,18 @@ std::string parseCmd(std::string msg)
     Json::Value cmd;
     std::string action = msg.substr(0, 4);
     if (action == "mesg") {
-            std::string uri = msg.substr(5, 40);
-            std::string info = msg.substr(46);
-            Json::Value mesg;
-            mesg["uri"] = uri;
-            mesg["info"] = info;
-            cmd["mesg"] = mesg;
+        std::string uri = msg.substr(5, 40);
+        std::string info = msg.substr(46);
+        Json::Value mesg;
+        mesg["uri"] = uri;
+        mesg["info"] = info;
+        cmd["mesg"] = mesg;
+    }
+    else if (action == "call") {
+        std::string uri = msg.substr(5,40);
+        Json::Value call;
+        call["uri"] = "ring:" + uri;
+        cmd["call"] = call;
     }
     root["command"] = cmd;
     Json::FastWriter fastWriter;
@@ -209,43 +235,47 @@ std::map<std::string, std::string> inputMessage()
     payloads.insert(std::make_pair(mimetype, parseCmd(msg)));
     return payloads;
 }
+
 static int
 run()
 {
- 
     using SharedCallback = std::shared_ptr<DRing::CallbackWrapperBase>;
     using DRing::exportable_callback;
     using DRing::ConfigurationSignal;
+    using DRing::CallSignal;
     using std::bind;
 
     std::map<std::string, SharedCallback> configHandlers;
+    std::map<std::string, SharedCallback> callHandlers;
+
     configHandlers.insert(exportable_callback<ConfigurationSignal::IncomingAccountMessage>(bind(&IncomingMessages, _1, _2, _3)));
-    
+    callHandlers.insert(exportable_callback<CallSignal::IncomingCall>(bind(&IncomingCall, _1, _2, _3)));
+
     if (!DRing::init(static_cast<DRing::InitFlag>(ringFlags))) {
         RING_ERR("DRing init error!");
         return -1;
     }
-    
+
     registerConfHandlers(configHandlers);
-    
+    registerCallHandlers(callHandlers);
+
     if (!DRing::start()) {
         RING_ERR("DRing start error!");
         return -1;
     }
 
     const std::vector<std::string> accountList(DRing::getAccountList());
-    RING_INFO("********ADD ACCOUNT**********");
     if (accountList.empty()) {
-        RING_INFO("TRYING TO ADD ACCOUNT");
+        RING_INFO("********ADD ACCOUNT**********");
         auto details = DRing::getAccountTemplate(DRing::Account::ProtocolNames::RING);
-        details["Account.alias"] = "loveST";
-        details["Account.archivePassword"] = "loveST1MARING";
-        details["Account.deviceID"] = "6bf905c7894c620894e0b40d0ef9f468f2c358d1";
-        details["Account.deviceName"] = "cosmos";
-        details["Account.displayName"] = "loveST";
-        details["Account.hostname"] = "bootstrap.ring.cx";
-        details["Account.username"] = "ring:3e4ae4861d1e888522b7c1530c202f8c43e99d71";
-        details["RingNS.account"] = "ccd0eeaf90ca0d75a6fa277fee8b822a32ef93fa";
+        std::string alias;
+        std::string archivePassword;
+        std::cout << "Please input your name : ";
+        getline(std::cin, alias);
+        std::cout << "Please input your password : ";
+        getline(std::cin, archivePassword);
+        details["Account.archivePassword"] = archivePassword;
+        details["Account.alias"] = alias;
         DRing::addAccount(details);
     }
     else {
@@ -255,8 +285,8 @@ run()
         }
     }
 
-   // std::map<std::string, std::string> payloads;
-    std::string accountID(accountList.front());
+    const std::vector<std::string> accList(DRing::getAccountList());
+    std::string accountID(accList.front());
     std::string toUri("ring:fd9d8b64610500a8f7b87579fbfc75562ff97f3c");
 
     RING_INFO("-----------------------------LOOP BEGIN----------------------");
